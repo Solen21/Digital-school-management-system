@@ -103,7 +103,9 @@ include 'header.php';
                                 <a href="view_profile.php?user_id=<?php echo $child['user_id']; ?>" class="btn btn-sm btn-primary"><i class="bi bi-person-badge-fill"></i> View Profile</a>
                                 <a href="view_my_grades.php?student_id=<?php echo $child['student_id']; ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-text-fill"></i> View Grades</a>
                                 <a href="view_my_discipline.php?student_id=<?php echo $child['student_id']; ?>" class="btn btn-sm btn-outline-warning"><i class="bi bi-cone-striped"></i> Discipline</a>
+                                <a href="parent_teacher_portal.php?student_id=<?php echo $child['student_id']; ?>" class="btn btn-sm btn-info"><i class="bi bi-robot"></i> Performance Portal</a>
                                 <a href="view_my_attendance.php?student_id=<?php echo $child['student_id']; ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-calendar-check-fill"></i> View Attendance</a>
+                                <a href="leaderboard.php" class="btn btn-sm btn-outline-success"><i class="bi bi-trophy-fill"></i> Leaderboard</a>
                             </div>
                         </div>
                     </div>

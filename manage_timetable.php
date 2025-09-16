@@ -54,59 +54,104 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['save_schedule'])) {
     $classroom_id = $_POST['classroom_id'] ?? null;
     if (empty($classroom_id)) {
         $message = "Please select a classroom before auto-distributing.";
-        $message_type = 'error';
+        $message_type = 'danger';
     } else {
-        // --- Auto-Distribution Logic ---
-        // 1. Get the classroom's grade level, then find its current shift
-        $stmt_grade = mysqli_prepare($conn, "SELECT grade_level FROM classrooms WHERE classroom_id = ?");
-        mysqli_stmt_bind_param($stmt_grade, "i", $classroom_id);
-        mysqli_stmt_execute($stmt_grade);
-        $grade_level = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_grade))['grade_level'];
-        mysqli_stmt_close($stmt_grade);
+        try {
+            // --- New, Smarter Auto-Distribution Logic ---
+            // 1. Get classroom's grade and shift to determine available periods
+            $stmt_grade = mysqli_prepare($conn, "SELECT grade_level FROM classrooms WHERE classroom_id = ?");
+            mysqli_stmt_bind_param($stmt_grade, "i", $classroom_id);
+            mysqli_stmt_execute($stmt_grade);
+            $grade_level = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_grade))['grade_level'];
+            mysqli_stmt_close($stmt_grade);
 
-        $current_week = date('W');
-        $stmt_shift = mysqli_prepare($conn, "SELECT shift FROM weekly_shift_assignments WHERE grade_level = ? AND week_of_year = ?");
-        mysqli_stmt_bind_param($stmt_shift, "ii", $grade_level, $current_week);
-        mysqli_stmt_execute($stmt_shift);
-        $classroom_shift = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_shift))['shift'] ?? 'Morning'; // Default to morning if not set
-        mysqli_stmt_close($stmt_shift);
-        
-        $stmt_periods = mysqli_prepare($conn, "SELECT period_id FROM schedule_periods WHERE shift = ? AND is_break = 0");
-        mysqli_stmt_bind_param($stmt_periods, "s", $classroom_shift);
-        mysqli_stmt_execute($stmt_periods);
-        $result_periods = mysqli_stmt_get_result($stmt_periods);
-        $available_period_ids = [];
-        while ($row = mysqli_fetch_assoc($result_periods)) {
-            $available_period_ids[] = $row['period_id'];
-        }
-        mysqli_stmt_close($stmt_periods);
+            $current_week = date('W');
+            $stmt_shift = mysqli_prepare($conn, "SELECT shift FROM weekly_shift_assignments WHERE grade_level = ? AND week_of_year = ?");
+            mysqli_stmt_bind_param($stmt_shift, "ii", $grade_level, $current_week);
+            mysqli_stmt_execute($stmt_shift);
+            $classroom_shift = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_shift))['shift'] ?? 'Morning';
+            mysqli_stmt_close($stmt_shift);
+            
+            $stmt_periods = mysqli_prepare($conn, "SELECT period_id FROM schedule_periods WHERE shift = ? AND is_break = 0");
+            mysqli_stmt_bind_param($stmt_periods, "s", $classroom_shift);
+            mysqli_stmt_execute($stmt_periods);
+            $available_period_ids = array_column(mysqli_fetch_all(mysqli_stmt_get_result($stmt_periods), MYSQLI_ASSOC), 'period_id');
+            mysqli_stmt_close($stmt_periods);
 
-        // 2. Get all subject assignments for this class and their required periods
-        $sql_sa = "SELECT sa.assignment_id, s.periods_per_week FROM subject_assignments sa JOIN subjects s ON sa.subject_id = s.subject_id WHERE sa.classroom_id = ?";
-        $stmt_sa = mysqli_prepare($conn, $sql_sa);
-        mysqli_stmt_bind_param($stmt_sa, "i", $classroom_id);
-        mysqli_stmt_execute($stmt_sa);
-        $result_sa = mysqli_stmt_get_result($stmt_sa);
-        $subject_pool = [];
-        while ($row = mysqli_fetch_assoc($result_sa)) {
-            for ($i = 0; $i < $row['periods_per_week']; $i++) {
-                $subject_pool[] = $row['assignment_id'];
+            // 2. Get all subject assignments for this class, including teacher_id and periods_per_week
+            $sql_sa = "SELECT sa.assignment_id, sa.teacher_id, s.periods_per_week FROM subject_assignments sa JOIN subjects s ON sa.subject_id = s.subject_id WHERE sa.classroom_id = ?";
+            $stmt_sa = mysqli_prepare($conn, $sql_sa);
+            mysqli_stmt_bind_param($stmt_sa, "i", $classroom_id);
+            mysqli_stmt_execute($stmt_sa);
+            $subject_assignments_raw = mysqli_fetch_all(mysqli_stmt_get_result($stmt_sa), MYSQLI_ASSOC);
+            mysqli_stmt_close($stmt_sa);
+
+            // Create a "pool" of classes to be scheduled, expanded by periods_per_week
+            $subject_pool = [];
+            foreach ($subject_assignments_raw as $sa) {
+                for ($i = 0; $i < $sa['periods_per_week']; $i++) {
+                    $subject_pool[] = ['assignment_id' => $sa['assignment_id'], 'teacher_id' => $sa['teacher_id']];
+                }
             }
-        }
-        mysqli_stmt_close($stmt_sa);
 
-        if (count($subject_pool) > count($available_period_ids)) {
-            $message = "Error: The total required periods (" . count($subject_pool) . ") exceed the available slots (" . count($available_period_ids) . "). Please adjust subject periods per week.";
-            $message_type = 'error';
-        } else {
-            // 3. Shuffle the pool and assign to available periods
-            shuffle($subject_pool);
-            $current_schedule = []; // This will become the new schedule
-            for ($i = 0; $i < count($subject_pool); $i++) {
-                $current_schedule[$available_period_ids[$i]] = $subject_pool[$i];
+            if (count($subject_pool) > count($available_period_ids)) {
+                throw new Exception("The total required periods (" . count($subject_pool) . ") exceed the available slots (" . count($available_period_ids) . "). Please adjust subject periods per week.");
             }
+
+            // 3. Get the complete existing schedule for ALL classrooms to check for teacher conflicts
+            $sql_all_schedules = "SELECT cs.period_id, sa.teacher_id FROM class_schedule cs JOIN subject_assignments sa ON cs.subject_assignment_id = sa.assignment_id";
+            $all_schedules_result = mysqli_query($conn, $sql_all_schedules);
+            $teacher_schedule_map = []; // [period_id => [teacher_id, teacher_id, ...]]
+            while ($row = mysqli_fetch_assoc($all_schedules_result)) {
+                $teacher_schedule_map[$row['period_id']][] = $row['teacher_id'];
+            }
+
+            // 4. The Scheduling Algorithm
+            shuffle($subject_pool); // Randomize to avoid the same subjects always getting prime slots
+            $new_schedule = []; // [period_id => assignment_id]
+            $unscheduled_subjects = [];
+
+            foreach ($subject_pool as $subject_to_schedule) {
+                $assignment_id = $subject_to_schedule['assignment_id'];
+                $teacher_id = $subject_to_schedule['teacher_id'];
+                $is_scheduled = false;
+
+                // Find an available period for this subject's teacher
+                shuffle($available_period_ids); // Shuffle periods to try different slots
+                foreach ($available_period_ids as $period_id) {
+                    // Check if this period is already taken in the new schedule for THIS class
+                    if (isset($new_schedule[$period_id])) {
+                        continue;
+                    }
+                    // Check if the teacher is already busy in ANY class during this period
+                    if (isset($teacher_schedule_map[$period_id]) && in_array($teacher_id, $teacher_schedule_map[$period_id])) {
+                        continue;
+                    }
+
+                    // Slot is free! Assign it.
+                    $new_schedule[$period_id] = $assignment_id;
+                    $teacher_schedule_map[$period_id][] = $teacher_id; // Mark teacher as busy for this period
+                    $is_scheduled = true;
+                    break; // Move to the next subject in the pool
+                }
+
+                if (!$is_scheduled) {
+                    $unscheduled_subjects[] = $assignment_id;
+                }
+            }
+
+            if (!empty($unscheduled_subjects)) {
+                throw new Exception("Could not automatically schedule all subjects due to teacher conflicts. Please adjust assignments or try again.");
+            }
+
+            // Success! The $new_schedule is now the proposed schedule.
+            $current_schedule = $new_schedule; // Set it for the view to render
             $message = "Schedule has been auto-distributed. Review the changes and click 'Save Timetable' to confirm.";
             $message_type = 'success';
+
+        } else {
+            $message = "Error: " . $e->getMessage();
+            $message_type = 'danger';
         }
     }
 } else {
@@ -236,7 +281,7 @@ $days_of_week = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
                 <tr class="table-primary"><th class="text-center">Time / Day</th><?php foreach ($days_of_week as $day) echo "<th class='text-center'>$day</th>"; ?></tr>
             </thead>
             <tbody>
-                <?php for ($i = 0; $i < 7; $i++): // 6 periods + 1 break ?>
+                <?php for ($i = 0; $i < 7; $i++): // Assumes max 6 periods + 1 break per shift ?>
                     <tr>
                         <?php $sample_period = $periods['Monday'][$i] ?? null; ?>
                         <th><?php echo date('h:i A', strtotime($sample_period['start_time'])) . ' - ' . date('h:i A', strtotime($sample_period['end_time'])); ?></th>

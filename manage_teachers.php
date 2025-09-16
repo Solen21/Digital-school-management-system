@@ -13,6 +13,70 @@ if (!in_array($_SESSION['role'], ['admin', 'director'])) {
 }
 
 require_once 'data/db_connect.php';
+require_once 'functions.php';
+
+// --- Handle POST request to delete a teacher ---
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['delete_teacher'])) {
+    $teacher_id_to_delete = $_POST['teacher_id'];
+
+    mysqli_begin_transaction($conn);
+    try {
+        // --- SAFETY CHECK: Ensure teacher is not assigned to any subjects ---
+        $sql_check_links = "SELECT COUNT(*) as assignment_count FROM subject_assignments WHERE teacher_id = ?";
+        $stmt_check = mysqli_prepare($conn, $sql_check_links);
+        mysqli_stmt_bind_param($stmt_check, "i", $teacher_id_to_delete);
+        mysqli_stmt_execute($stmt_check);
+        $link_count = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_check))['assignment_count'];
+        mysqli_stmt_close($stmt_check);
+
+        if ($link_count > 0) {
+            throw new Exception("Cannot delete teacher. They are still assigned to {$link_count} subject(s). Please unassign them first from the 'Assign Subjects to Teachers' page.");
+        }
+
+        // Get teacher details for logging
+        $sql_get_teacher = "SELECT user_id, first_name, last_name FROM teachers WHERE teacher_id = ?";
+        $stmt_get = mysqli_prepare($conn, $sql_get_teacher);
+        mysqli_stmt_bind_param($stmt_get, "i", $teacher_id_to_delete);
+        mysqli_stmt_execute($stmt_get);
+        $teacher_data = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_get));
+        mysqli_stmt_close($stmt_get);
+
+        if (!$teacher_data) {
+            throw new Exception("Teacher not found.");
+        }
+
+        // Delete the teacher record
+        $sql_delete_teacher = "DELETE FROM teachers WHERE teacher_id = ?";
+        $stmt_delete_teacher = mysqli_prepare($conn, $sql_delete_teacher);
+        mysqli_stmt_bind_param($stmt_delete_teacher, "i", $teacher_id_to_delete);
+        if (!mysqli_stmt_execute($stmt_delete_teacher)) {
+            throw new Exception("Failed to delete teacher record.");
+        }
+        mysqli_stmt_close($stmt_delete_teacher);
+
+        // Delete the associated user account
+        if ($teacher_data['user_id']) {
+            $sql_delete_user = "DELETE FROM users WHERE user_id = ?";
+            $stmt_delete_user = mysqli_prepare($conn, $sql_delete_user);
+            mysqli_stmt_bind_param($stmt_delete_user, "i", $teacher_data['user_id']);
+            if (!mysqli_stmt_execute($stmt_delete_user)) {
+                throw new Exception("Failed to delete user account.");
+            }
+            mysqli_stmt_close($stmt_delete_user);
+        }
+
+        mysqli_commit($conn);
+        log_activity($conn, 'delete_teacher', $teacher_id_to_delete, "Deleted teacher: " . $teacher_data['first_name'] . ' ' . $teacher_data['last_name']);
+        $_SESSION['import_message'] = "Teacher deleted successfully.";
+        $_SESSION['import_message_type'] = 'success';
+    } catch (Exception $e) {
+        mysqli_rollback($conn);
+        $_SESSION['import_message'] = "Error deleting teacher: " . $e->getMessage();
+        $_SESSION['import_message_type'] = 'danger';
+    }
+    header("Location: manage_teachers.php");
+    exit();
+}
 
 // --- Search and Filter Logic ---
 $search_name = $_GET['search_name'] ?? '';
@@ -60,7 +124,13 @@ $total_pages = ceil($total_records / $records_per_page);
 
 // --- Fetch teachers for the current page ---
 $teachers = [];
-$sql = "SELECT t.teacher_id, t.user_id, t.first_name, t.middle_name, t.last_name, t.email, t.phone, t.status FROM teachers t";
+$sql = "
+    SELECT 
+        t.teacher_id, t.user_id, t.first_name, t.middle_name, t.last_name, t.email, t.phone, t.status,
+        (SELECT COUNT(*) FROM subject_assignments sa WHERE sa.teacher_id = t.teacher_id) as assignment_count
+    FROM 
+        teachers t
+";
 
 if (!empty($where_clauses)) {
     $sql .= " WHERE " . implode(' AND ', $where_clauses);
@@ -96,7 +166,7 @@ include 'header.php';
         <a href="dashboard.php" class="btn btn-secondary">Back to Dashboard</a>
     </div>
 
-    <?php if (isset($_SESSION['import_message'])): ?>
+    <?php if (isset($_SESSION['import_message'])): // This session is used for import, delete, and other actions ?>
         <div class="alert alert-<?php echo $_SESSION['import_message_type']; ?> alert-dismissible fade show" role="alert">
             <?php echo $_SESSION['import_message']; ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -151,7 +221,7 @@ include 'header.php';
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-striped table-hover">
-                    <thead class="table-light"><tr><th>ID</th><th>Full Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Actions</th></tr></thead>
+                    <thead class="table-light"><tr><th>ID</th><th>Full Name</th><th>Email / Phone</th><th>Status</th><th>Assignments</th><th>Actions</th></tr></thead>
                     <tbody>
                         <?php if (empty($teachers)): ?>
                             <tr><td colspan="6" class="text-center">No teachers found matching your criteria. <a href="manage_teachers.php">Clear filters</a>.</td></tr>
@@ -160,14 +230,25 @@ include 'header.php';
                             <tr>
                                 <td><?php echo htmlspecialchars($teacher['teacher_id']); ?></td>
                                 <td><?php echo htmlspecialchars($teacher['first_name'] . ' ' . $teacher['middle_name'] . ' ' . $teacher['last_name']); ?></td>
-                                <td><?php echo htmlspecialchars($teacher['email'] ?? 'N/A'); ?></td>
-                                <td><?php echo htmlspecialchars($teacher['phone']); ?></td>
-                                <td><span class="badge <?php echo $teacher['status'] === 'active' ? 'bg-success' : 'bg-secondary'; ?>"><?php echo htmlspecialchars(ucfirst($teacher['status'])); ?></span></td>
                                 <td>
-                                    <a href="view_profile.php?user_id=<?php echo $teacher['user_id']; ?>" class="btn btn-sm btn-info" title="View Profile"><i class="bi bi-eye-fill"></i></a>
-                                    <a href="send_notification.php?user_id=<?php echo $teacher['user_id']; ?>" class="btn btn-sm btn-secondary" title="Send Notification"><i class="bi bi-bell-fill"></i></a>
-                                    <a href="edit_teacher.php?id=<?php echo $teacher['teacher_id']; ?>" class="btn btn-sm btn-primary" title="Edit Teacher"><i class="bi bi-pencil-fill"></i></a>
-                                    <a href="delete_teacher.php?id=<?php echo $teacher['teacher_id']; ?>" class="btn btn-sm btn-danger" title="Delete Teacher" onclick="return confirm('Are you sure? This will permanently delete the teacher and all their associated data.')"><i class="bi bi-trash-fill"></i></a>
+                                    <div><?php echo htmlspecialchars($teacher['email'] ?? 'N/A'); ?></div>
+                                    <small class="text-muted"><?php echo htmlspecialchars($teacher['phone']); ?></small>
+                                </td>
+                                <td><span class="badge <?php echo $teacher['status'] === 'active' ? 'bg-success' : 'bg-secondary'; ?>"><?php echo htmlspecialchars(ucfirst($teacher['status'])); ?></span></td>
+                                <td><span class="badge bg-info text-dark"><?php echo $teacher['assignment_count']; ?></span></td>
+                                <td>
+                                    <form action="manage_teachers.php" method="POST" class="d-inline">
+                                        <input type="hidden" name="teacher_id" value="<?php echo $teacher['teacher_id']; ?>">
+                                        <a href="view_profile.php?user_id=<?php echo $teacher['user_id']; ?>" class="btn btn-sm btn-info" title="View Profile"><i class="bi bi-eye-fill"></i></a>
+                                        <a href="edit_teacher.php?id=<?php echo $teacher['teacher_id']; ?>" class="btn btn-sm btn-primary" title="Edit Teacher"><i class="bi bi-pencil-fill"></i></a>
+                                        <button type="submit" name="delete_teacher" 
+                                                class="btn btn-sm btn-danger" 
+                                                title="<?php echo $teacher['assignment_count'] > 0 ? 'Cannot delete: Teacher has active assignments.' : 'Delete Teacher'; ?>" 
+                                                onclick="return confirm('Are you sure you want to permanently delete this teacher? This action cannot be undone.');"
+                                                <?php if ($teacher['assignment_count'] > 0) echo 'disabled'; ?>>
+                                            <i class="bi bi-trash-fill"></i>
+                                        </button>
+                                    </form>
                                 </td>
                             </tr>
                             <?php endforeach; ?>

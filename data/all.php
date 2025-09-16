@@ -558,6 +558,40 @@ $sql_new_article = "CREATE TABLE news_articles (
     FOREIGN KEY (author_id) REFERENCES users(user_id) ON DELETE CASCADE
 )";
 
+// ================= GAMIFICATION =================
+$sql_student_gamification = "CREATE TABLE IF NOT EXISTS student_gamification (
+    student_id INT(11) NOT NULL,
+    total_points INT(11) NOT NULL DEFAULT 0,
+    badges TEXT,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (student_id),
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+
+$sql_gamification_log = "CREATE TABLE IF NOT EXISTS gamification_log (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT(11) NOT NULL,
+    points_earned INT NOT NULL,
+    reason VARCHAR(255) NOT NULL,
+    details TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+
+// ================= PERFORMANCE PREDICTIONS =================
+$sql_performance_predictions = "CREATE TABLE IF NOT EXISTS performance_predictions (
+    prediction_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT(11) NOT NULL,
+    subject_id INT(11) NOT NULL,
+    predicted_grade DECIMAL(5,2) NOT NULL,
+    risk_level ENUM('Low', 'Medium', 'High') NOT NULL,
+    risk_factors TEXT,
+    prediction_date DATE NOT NULL,
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
+    FOREIGN KEY (subject_id) REFERENCES subjects(subject_id) ON DELETE CASCADE,
+    UNIQUE KEY `unique_prediction_per_day` (`student_id`, `subject_id`, `prediction_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+
 // ================= EVENTS =================
 $sql_events = "CREATE TABLE IF NOT EXISTS events (
     event_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -572,6 +606,33 @@ $sql_events = "CREATE TABLE IF NOT EXISTS events (
     FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
 
+// ================= GUARDIAN ALERTS LOG =================
+$sql_guardian_alerts_log = "CREATE TABLE IF NOT EXISTS guardian_alerts_log (
+    alert_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT(11) NOT NULL,
+    alert_type VARCHAR(50) NOT NULL,
+    details TEXT,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    KEY `student_alert_type_idx` (`student_id`, `alert_type`),
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+
+// ================= TEACHER EVALUATIONS =================
+$sql_teacher_evaluations = "CREATE TABLE IF NOT EXISTS teacher_evaluations (
+    evaluation_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT(11) NOT NULL,
+    teacher_id INT(11) NOT NULL,
+    subject_id INT(11) NOT NULL,
+    classroom_id INT(11) NOT NULL,
+    rating INT(1) NOT NULL COMMENT 'Rating from 1 to 5',
+    comments TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
+    FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id) ON DELETE CASCADE,
+    FOREIGN KEY (subject_id) REFERENCES subjects(subject_id) ON DELETE CASCADE,
+    FOREIGN KEY (classroom_id) REFERENCES classrooms(classroom_id) ON DELETE CASCADE,
+    UNIQUE KEY `unique_evaluation` (`student_id`, `teacher_id`, `subject_id`, `classroom_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
 
 // Array of all table creation queries
 $queries = [
@@ -614,7 +675,12 @@ $queries = [
     $sql_discipline_record,
     $sql_new_article_categories,
     $sql_new_article,
-    $sql_events
+    $sql_student_gamification,
+    $sql_gamification_log,
+    $sql_performance_predictions,
+    $sql_events,
+    $sql_guardian_alerts_log,
+    $sql_teacher_evaluations
 ];
 
 // Execute each query

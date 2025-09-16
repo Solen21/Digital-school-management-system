@@ -11,6 +11,7 @@ require_once 'data/db_connect.php';
 
 $message = '';
 $message_type = '';
+$page_title = 'Manage Shift Rotation';
 
 // --- Handle POST request to generate shifts ---
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_shifts'])) {
@@ -99,31 +100,20 @@ while($row = mysqli_fetch_assoc($result_display)) {
 }
 
 mysqli_close($conn);
+include 'header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <title>Manage Shift Rotation</title>
+<style>
+    .shift-display { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .shift-card { border: 1px solid var(--medium-gray); border-radius: var(--border-radius-lg); background-color: var(--white); }
+    .shift-card .card-header { background-color: var(--light-gray); }
+    .shift-card .card-body p { font-size: 1.1rem; font-weight: 500; }
+</style>
 
-    <!-- Custom styles -->
-    <style>
-        .info-box { background-color: #f3f4f6; border-radius: 0.375rem; padding: 1.5rem; margin-top: 1.5rem; }
-        .shift-display { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem; }
-        .shift-card { border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; }
-        .shift-card h4 { margin-top: 0; }
-    </style>
-</head>
-<body class="bg-light">
-
-<div class="container py-5" style="max-width: 800px;">
+<div class="container" style="max-width: 900px;">
     <div class="card shadow-sm">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-            <h4 class="mb-0"><i class="bi bi-arrow-clockwise me-2"></i> Manage Weekly Shift Rotation</h4>
-            <a href="manage_assignments.php" class="btn btn-outline-light btn-sm"><i class="bi bi-chevron-left me-1"></i> Back to Assignments</a>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h4 class="mb-0"><i class="bi bi-arrow-repeat me-2"></i>Manage Weekly Shift Rotation</h4>
+            <a href="manage_assignments.php" class="btn btn-secondary btn-sm"><i class="bi bi-chevron-left me-1"></i> Back to Assignments</a>
         </div>
         <div class="card-body">
 
@@ -131,15 +121,15 @@ mysqli_close($conn);
                 <i class="bi bi-info-circle me-2"></i> This system automatically rotates shifts weekly. Two grade levels are paired in the morning shift, and two are in the afternoon. The pairs switch shifts every week.
             </div>
 
-            <h5 class="mt-4"><i class="bi bi-calendar-week me-2"></i> Current Week (Week <?php echo $current_week_num; ?>, <?php echo $current_year; ?>)</h5>
+            <h5 class="mt-4"><i class="bi bi-calendar-week me-2"></i>Current Week (Week <?php echo $current_week_num; ?>, <?php echo $current_year; ?>)</h5>
             <div class="shift-display">
-                <div class="shift-card">
-                    <h4><i class="bi bi-sunrise me-1"></i> Morning Shift</h4>
-                    <p><?php echo !empty($shifts_today['Morning']) ? implode(' & ', $shifts_today['Morning']) : '<span class="text-muted">Not set for this week.</span>'; ?></p>
+                <div class="card shift-card">
+                    <div class="card-header"><i class="bi bi-sunrise-fill me-2"></i>Morning Shift</div>
+                    <div class="card-body"><p><?php echo !empty($shifts_today['Morning']) ? implode(' & ', $shifts_today['Morning']) : '<span class="text-muted">Not set for this week.</span>'; ?></p></div>
                 </div>
-                <div class="shift-card">
-                    <h4><i class="bi bi-sunset me-1"></i> Afternoon Shift</h4>
-                    <p><?php echo !empty($shifts_today['Afternoon']) ? implode(' & ', $shifts_today['Afternoon']) : '<span class="text-muted">Not set for this week.</span>'; ?></p>
+                <div class="card shift-card">
+                    <div class="card-header"><i class="bi bi-sunset-fill me-2"></i>Afternoon Shift</div>
+                    <div class="card-body"><p><?php echo !empty($shifts_today['Afternoon']) ? implode(' & ', $shifts_today['Afternoon']) : '<span class="text-muted">Not set for this week.</span>'; ?></p></div>
                 </div>
             </div>
 
@@ -148,7 +138,7 @@ mysqli_close($conn);
             <p>Generate the rotating schedule for the upcoming weeks. The system will continue from the last generated week.</p>
 
             <?php if ($message): ?>
-                <div class="alert alert-<?php echo $message_type === 'success' ? 'success' : 'danger'; ?>"><i class="bi <?php echo $message_type === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle'; ?> me-2"></i><?php echo $message; ?></div>
+                <div class="alert alert-<?php echo $message_type; ?>"><i class="bi <?php echo $message_type === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle'; ?> me-2"></i><?php echo $message; ?></div>
             <?php endif; ?>
 
             <form action="manage_shift_rotation.php" method="POST">
@@ -162,5 +152,4 @@ mysqli_close($conn);
         </div>
     </div>
 </div>
-</body>
-</html>
+<?php include 'footer.php'; ?>

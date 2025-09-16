@@ -10,7 +10,7 @@ if (!isset($_SESSION["user_id"]) || $_SESSION['role'] !== 'teacher') {
 require_once 'data/db_connect.php';
 
 $teacher_id = null;
-$schedule = [];
+$schedule_grid = [];
 $error_message = '';
 
 // 2. Get the teacher's internal ID from their user_id.
@@ -49,7 +49,7 @@ if ($teacher_id) {
     mysqli_stmt_execute($stmt_schedule);
     $result_schedule = mysqli_stmt_get_result($stmt_schedule);
     while ($row = mysqli_fetch_assoc($result_schedule)) {
-        $schedule[date('h:i A', strtotime($row['start_time']))][$row['day_of_week']] = $row;
+        $schedule_grid[date('H:i:s', strtotime($row['start_time']))][$row['day_of_week']] = $row;
     }
     mysqli_stmt_close($stmt_schedule);
 }
@@ -57,6 +57,8 @@ if ($teacher_id) {
 mysqli_close($conn);
 
 $days_of_week = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+$page_title = 'My Teaching Schedule';
+include 'header.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -66,48 +68,47 @@ $days_of_week = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     <title>My Teaching Schedule</title>
     <link rel="stylesheet" href="add_student.php">
     <style>
-        table { border-collapse: collapse; width: 100%; margin-top: 1.5rem; table-layout: fixed; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; height: 70px; }
-        th { background-color: #f2f2f2; }
-        .break { background-color: #f0f0f0; font-style: italic; }
+        .schedule-table { table-layout: fixed; }
+        .schedule-table th, .schedule-table td { text-align: center; vertical-align: middle; height: 80px; }
+        .schedule-table .time-col { width: 120px; font-weight: bold; }
+        .schedule-table .break-cell { background-color: var(--light-gray); font-style: italic; }
     </style>
 </head>
 <body>
 <div class="container">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>My Teaching Schedule</h1>
-        <a href="dashboard.php" class="btn" style="background-color: #6b7280;">Back to Dashboard</a>
+        <a href="dashboard.php" class="btn btn-secondary">Back to Dashboard</a>
     </div>
 
     <?php if ($error_message): ?>
-        <div class="message error"><?php echo $error_message; ?></div>
-    <?php elseif (empty($schedule)): ?>
-        <div class="message">You do not have any classes scheduled yet.</div>
+        <div class="alert alert-danger"><?php echo $error_message; ?></div>
+    <?php elseif (empty($schedule_grid)): ?>
+        <div class="alert alert-info">You do not have any classes scheduled yet.</div>
     <?php else: ?>
-        <table>
-            <thead><tr><th>Time</th><?php foreach ($days_of_week as $day) echo "<th>$day</th>"; ?></tr></thead>
-            <tbody>
-            <?php
-                // Get all possible periods to build the table rows
-                $conn_temp = mysqli_connect("localhost", "root", "", "sms");
-                $result_periods = mysqli_query($conn_temp, "SELECT DISTINCT start_time, end_time FROM schedule_periods ORDER BY start_time");
-                $periods_by_time = mysqli_fetch_all($result_periods, MYSQLI_ASSOC);
-                mysqli_close($conn_temp);
-            ?>
-            <?php foreach ($periods_by_time as $time_slot): ?>
-                <tr>
-                    <th><?php echo date('h:i A', strtotime($time_slot['start_time'])); ?></th>
-                    <?php foreach ($days_of_week as $day): ?>
-                        <?php $period_info = $schedule[date('h:i A', strtotime($time_slot['start_time']))][$day] ?? null; ?>
-                        <?php if ($period_info && $period_info['is_break']): ?><td class="break">Break</td>
-                        <?php elseif ($period_info): ?><td><?php echo htmlspecialchars($period_info['subject_name']); ?><br><small><?php echo htmlspecialchars($period_info['classroom_name']); ?></small></td>
-                        <?php else: ?><td>-</td><?php endif; ?>
-                    <?php endforeach; ?>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0"><i class="bi bi-table me-2"></i>Weekly Timetable</h5></div>
+            <div class="table-responsive">
+                <table class="table table-bordered schedule-table">
+                    <thead class="table-light">
+                        <tr><th class="time-col">Time</th><?php foreach ($days_of_week as $day) echo "<th>$day</th>"; ?></tr>
+                    </thead>
+                    <tbody>
+                        <?php ksort($schedule_grid); foreach ($schedule_grid as $time => $days): ?>
+                            <tr>
+                                <td class="time-col"><?php echo date('g:i A', strtotime($time)); ?></td>
+                                <?php foreach ($days_of_week as $day): ?>
+                                    <?php $period = $days[$day] ?? null; ?>
+                                    <?php if ($period && $period['is_break']): ?><td class="break-cell">Break</td>
+                                    <?php elseif ($period): ?><td><strong><?php echo htmlspecialchars($period['subject_name']); ?></strong><br><small class="text-muted"><?php echo htmlspecialchars($period['classroom_name']); ?></small></td>
+                                    <?php else: ?><td>-</td><?php endif; ?>
+                                <?php endforeach; ?>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     <?php endif; ?>
 </div>
-</body>
-</html>
+<?php include 'footer.php'; ?>

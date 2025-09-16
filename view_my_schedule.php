@@ -3,6 +3,8 @@ session_start();
 
 // 1. Security Check: User must be logged in and a student/rep
 if (!isset($_SESSION["user_id"]) || !in_array($_SESSION['role'], ['student', 'rep'])) {
+    // Allow guardians to view via GET param
+    if (!isset($_GET['student_id']) || $_SESSION['role'] !== 'guardian') {
     header("Location: login.php");
     exit();
 }
@@ -10,48 +12,74 @@ if (!isset($_SESSION["user_id"]) || !in_array($_SESSION['role'], ['student', 're
 require_once 'data/db_connect.php';
 
 $user_id = $_SESSION['user_id'];
-$schedule_data = [];
+$schedule_grid = [];
 $student_info = null;
+$days_of_week = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
-// 2. Fetch student and classroom info
-$sql_student = "
-    SELECT s.student_id, s.first_name, s.last_name, c.classroom_id, c.name as classroom_name
-    FROM students s
-    LEFT JOIN class_assignments ca ON s.student_id = ca.student_id
-    LEFT JOIN classrooms c ON ca.classroom_id = c.classroom_id
-    WHERE s.user_id = ?
-    LIMIT 1
-";
-$stmt_student = mysqli_prepare($conn, $sql_student);
-mysqli_stmt_bind_param($stmt_student, "i", $user_id);
-mysqli_stmt_execute($stmt_student);
-$result_student = mysqli_stmt_get_result($stmt_student);
-$student_info = mysqli_fetch_assoc($result_student);
-mysqli_stmt_close($stmt_student);
-
-if ($student_info && !empty($student_info['classroom_id'])) {
-    $classroom_id = $student_info['classroom_id'];
-
-    // 3. Fetch the schedule (subjects and teachers) for the student's classroom
-    $sql_schedule = "
-        SELECT
-            sub.name as subject_name,
-            sub.code as subject_code,
-            CONCAT(t.first_name, ' ', t.last_name) as teacher_name
-        FROM subject_assignments sa
-        JOIN subjects sub ON sa.subject_id = sub.subject_id
-        LEFT JOIN teachers t ON sa.teacher_id = t.teacher_id
-        WHERE sa.classroom_id = ?
-        ORDER BY sub.name
-    ";
-    $stmt_schedule = mysqli_prepare($conn, $sql_schedule);
-    mysqli_stmt_bind_param($stmt_schedule, "i", $classroom_id);
-    mysqli_stmt_execute($stmt_schedule);
-    $result_schedule = mysqli_stmt_get_result($stmt_schedule);
-    while ($row = mysqli_fetch_assoc($result_schedule)) {
-        $schedule_data[] = $row;
+// 2. Determine which student's schedule to view
+$student_id_to_view = null;
+if ($_SESSION['role'] === 'guardian' && isset($_GET['student_id'])) {
+    // Guardian viewing a child's schedule. Verify access.
+    $child_student_id = intval($_GET['student_id']);
+    $sql_verify = "SELECT COUNT(*) as count FROM student_guardian_map sgm JOIN guardians g ON sgm.guardian_id = g.guardian_id WHERE g.user_id = ? AND sgm.student_id = ?";
+    $stmt_verify = mysqli_prepare($conn, $sql_verify);
+    mysqli_stmt_bind_param($stmt_verify, "ii", $user_id, $child_student_id);
+    mysqli_stmt_execute($stmt_verify);
+    if (mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_verify))['count'] > 0) {
+        $student_id_to_view = $child_student_id;
     }
-    mysqli_stmt_close($stmt_schedule);
+} else {
+    // Student viewing their own schedule
+    $student_id_to_view = $_SESSION['student_id'] ?? null;
+}
+
+if ($student_id_to_view) {
+    // Fetch student and classroom info
+    $sql_student = "
+        SELECT s.student_id, s.first_name, s.last_name, c.classroom_id, c.name as classroom_name, c.grade_level
+        FROM students s
+        LEFT JOIN class_assignments ca ON s.student_id = ca.student_id
+        LEFT JOIN classrooms c ON ca.classroom_id = c.classroom_id
+        WHERE s.student_id = ? LIMIT 1
+    ";
+    $stmt_student = mysqli_prepare($conn, $sql_student);
+    mysqli_stmt_bind_param($stmt_student, "i", $student_id_to_view);
+    mysqli_stmt_execute($stmt_student);
+    $student_info = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_student));
+    mysqli_stmt_close($stmt_student);
+}
+
+if ($student_info && !empty($student_info['classroom_id'])) {    
+    // 3. Get the classroom's shift for the current week
+    $current_week = date('W');
+    $stmt_shift = mysqli_prepare($conn, "SELECT shift FROM weekly_shift_assignments WHERE grade_level = ? AND week_of_year = ?");
+    mysqli_stmt_bind_param($stmt_shift, "ii", $student_info['grade_level'], $current_week);
+    mysqli_stmt_execute($stmt_shift);
+    $classroom_shift = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_shift))['shift'] ?? 'Morning';
+    mysqli_stmt_close($stmt_shift);
+
+    // 4. Fetch the full schedule grid for the classroom
+    $sql_grid = "
+        SELECT
+            p.day_of_week, p.start_time, p.end_time, p.is_break,
+            sub.name as subject_name,
+            CONCAT(t.first_name, ' ', t.last_name) as teacher_name
+        FROM class_schedule cs
+        JOIN schedule_periods p ON cs.period_id = p.period_id
+        JOIN subject_assignments sa ON cs.subject_assignment_id = sa.assignment_id
+        JOIN subjects sub ON sa.subject_id = sub.subject_id
+        JOIN teachers t ON sa.teacher_id = t.teacher_id
+        WHERE cs.classroom_id = ? AND p.shift = ?
+        ORDER BY p.start_time, p.day_of_week
+    ";
+    $stmt_grid = mysqli_prepare($conn, $sql_grid);
+    mysqli_stmt_bind_param($stmt_grid, "is", $student_info['classroom_id'], $classroom_shift);
+    mysqli_stmt_execute($stmt_grid);
+    $result_grid = mysqli_stmt_get_result($stmt_grid);
+    while ($row = mysqli_fetch_assoc($result_grid)) {
+        $schedule_grid[$row['start_time']][$row['day_of_week']] = $row;
+    }
+    mysqli_stmt_close($stmt_grid);
 }
 
 mysqli_close($conn);
@@ -59,6 +87,12 @@ mysqli_close($conn);
 $page_title = 'My Class Schedule';
 include 'header.php';
 ?>
+<style>
+    .schedule-table { table-layout: fixed; }
+    .schedule-table th, .schedule-table td { text-align: center; vertical-align: middle; height: 80px; }
+    .schedule-table .time-col { width: 120px; font-weight: bold; }
+    .schedule-table .break-cell { background-color: var(--light-gray); font-style: italic; }
+</style>
 
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">

@@ -1,1 +1,0 @@
-# Digital-school-management-system

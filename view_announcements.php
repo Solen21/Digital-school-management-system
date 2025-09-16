@@ -78,6 +78,7 @@ mysqli_close($conn);
     <style>
         .announcement-list { list-style: none; padding: 0; }
         .announcement-item { background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 1.5rem; }
+        .announcement-item .translated-content { background-color: #e9ecef; border-left: 4px solid var(--primary-color); padding: 1rem; margin-top: 1rem; border-radius: 0.25rem; }
         .announcement-item h3 { margin-top: 0; }
         .announcement-meta { font-size: 0.875rem; color: #6b7280; margin-top: 1rem; border-top: 1px solid #e5e7eb; padding-top: 1rem; }
         .announcement-content { margin-top: 1rem; line-height: 1.6; }
@@ -96,8 +97,19 @@ mysqli_close($conn);
         <ul class="announcement-list">
             <?php foreach ($announcements as $announcement): ?>
             <li class="announcement-item">
-                <h3><?php echo htmlspecialchars($announcement['title']); ?></h3>
-                <div class="announcement-content"><?php echo nl2br(htmlspecialchars($announcement['content'])); ?></div>
+                <div class="d-flex justify-content-between align-items-start">
+                    <h3 class="mb-0"><?php echo htmlspecialchars($announcement['title']); ?></h3>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-secondary translate-btn" data-lang="am">አማርኛ</button>
+                        <button class="btn btn-sm btn-outline-secondary translate-btn" data-lang="en">English</button>
+                    </div>
+                </div>
+                <div class="announcement-content original-text"><?php echo nl2br(htmlspecialchars($announcement['content'])); ?></div>
+                <div class="translated-content" style="display: none;">
+                    <div class="spinner-border spinner-border-sm" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
                 <div class="announcement-meta">
                     Posted by <?php echo htmlspecialchars(trim($announcement['poster_fname'] . ' ' . $announcement['poster_lname'])); ?>
                     (<?php echo htmlspecialchars(ucfirst($announcement['poster_role'])); ?>)
@@ -109,4 +121,46 @@ mysqli_close($conn);
     <?php endif; ?>
 </div>
 </body>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.translate-btn').forEach(button => {
+        button.addEventListener('click', async function() {
+            const announcementItem = this.closest('.announcement-item');
+            const originalText = announcementItem.querySelector('.original-text').innerText;
+            const translatedContentDiv = announcementItem.querySelector('.translated-content');
+            const targetLang = this.dataset.lang;
+
+            // Show spinner and hide previous translation
+            translatedContentDiv.style.display = 'block';
+            translatedContentDiv.innerHTML = `<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div> Translating...`;
+
+            try {
+                const response = await fetch('translate_api.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        text: originalText,
+                        target_lang: targetLang
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Translation service failed.');
+                }
+
+                const data = await response.json();
+                translatedContentDiv.innerHTML = nl2br(data.translated_text);
+
+            } catch (error) {
+                translatedContentDiv.innerHTML = `<span class="text-danger">Error: Could not translate content.</span>`;
+                console.error('Translation error:', error);
+            }
+        });
+    });
+    function nl2br(str) { return (str + '').replace(/([^>\r\n]?)(\r\n|\n\r|\r|\n)/g, '$1<br>$2'); }
+});
+</script>
 </html>

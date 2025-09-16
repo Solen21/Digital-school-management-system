@@ -13,10 +13,12 @@ $report_data = [];
 $sql = "
     SELECT
         t.first_name, t.last_name,
-        COUNT(DISTINCT sa.subject_id) as subject_count,
-        COUNT(DISTINCT sa.classroom_id) as classroom_count
+        COUNT(DISTINCT sa.subject_id) as unique_subject_count,
+        COUNT(DISTINCT sa.classroom_id) as unique_classroom_count,
+        SUM(sub.periods_per_week) as total_periods_per_week
     FROM teachers t
     LEFT JOIN subject_assignments sa ON t.teacher_id = sa.teacher_id
+    LEFT JOIN subjects sub ON sa.subject_id = sub.subject_id
     WHERE t.status = 'active'
     GROUP BY t.teacher_id
     ORDER BY t.last_name, t.first_name;

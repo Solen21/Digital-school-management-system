@@ -71,10 +71,12 @@ $filter_start_date = $_GET['start_date'] ?? '';
 $filter_end_date = $_GET['end_date'] ?? '';
 $filter_subject_id = $_GET['subject_id'] ?? '';
 
-$sql_attendance = "SELECT a.attendance_date, a.status, s.name as subject_name, CONCAT(t.first_name, ' ', t.last_name) as teacher_name
+$sql_attendance = "SELECT a.attendance_id, a.attendance_date, a.status, s.name as subject_name, CONCAT(t.first_name, ' ', t.last_name) as teacher_name,
+                   ae.status as excuse_status
                    FROM attendance a
                    JOIN subjects s ON a.subject_id = s.subject_id 
                    LEFT JOIN teachers t ON a.teacher_id = t.teacher_id
+                   LEFT JOIN absence_excuses ae ON a.attendance_id = ae.attendance_id
                    WHERE a.student_id = ?";
 $params = [$student_id];
 $types = 'i';
@@ -131,11 +133,11 @@ include 'header.php';
     <div class="card">
         <div class="card-header"><h5 class="mb-0">Attendance Log</h5></div>
         <div class="table-responsive">
-            <table class="table table-striped table-hover mb-0">
-                <thead class="table-light"><tr><th>Date</th><th>Subject</th><th>Status</th><th>Recorded By</th></tr></thead>
+            <table class="table table-striped table-hover mb-0 align-middle">
+                <thead class="table-light"><tr><th>Date</th><th>Subject</th><th>Status</th><th>Recorded By</th><th>Action</th></tr></thead>
                 <tbody>
                     <?php if (empty($attendance_records)): ?>
-                        <tr><td colspan="4" class="text-center text-muted">No attendance records found for the selected criteria.</td></tr>
+                        <tr><td colspan="5" class="text-center text-muted">No attendance records found for the selected criteria.</td></tr>
                     <?php else: ?>
                         <?php foreach ($attendance_records as $record): ?>
                         <tr>
@@ -147,10 +149,20 @@ include 'header.php';
                                     if ($record['status'] == 'Present') $status_class = 'bg-success';
                                     elseif ($record['status'] == 'Absent') $status_class = 'bg-danger';
                                     elseif ($record['status'] == 'Late') $status_class = 'bg-warning text-dark';
+                                    elseif ($record['status'] == 'Excused') $status_class = 'bg-info text-dark';
                                 ?>
                                 <span class="badge <?php echo $status_class; ?>"><?php echo htmlspecialchars($record['status']); ?></span>
                             </td>
                             <td class="text-muted"><?php echo htmlspecialchars($record['teacher_name'] ?? 'N/A'); ?></td>
+                            <td>
+                                <?php if ($record['status'] == 'Absent' && is_null($record['excuse_status'])): ?>
+                                    <a href="submit_absence_excuse.php?attendance_id=<?php echo $record['attendance_id']; ?>" class="btn btn-sm btn-outline-primary">Submit Excuse</a>
+                                <?php elseif (!is_null($record['excuse_status'])): ?>
+                                    <span class="badge bg-secondary">Excuse <?php echo htmlspecialchars($record['excuse_status']); ?></span>
+                                <?php else: ?>
+                                    -
+                                <?php endif; ?>
+                            </td>
                         </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>

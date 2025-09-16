@@ -25,7 +25,12 @@ switch ($role) {
             ['href' => 'manage_users.php', 'icon' => 'bi-person-gear', 'title' => 'Manage Users', 'desc' => 'Edit user roles and access.', 'lottie' => 'assets/animations/user-settings.json'],
             ['href' => 'view_activity_log.php', 'icon' => 'bi-journal-text', 'title' => 'View Activity Log', 'desc' => 'Review all system and user activities.', 'lottie' => 'assets/animations/activity-log.json'],
             ['href' => 'academic_overview.php', 'icon' => 'bi-bar-chart-line-fill', 'title' => 'Academic Overview', 'desc' => 'High-level school statistics.', 'lottie' => 'assets/animations/analytics-chart.json'],
+            ['href' => 'manage_predictions.php', 'icon' => 'bi-robot', 'title' => 'AI Predictions', 'desc' => 'Manage and view AI-based student predictions.', 'lottie' => 'assets/animations/analytics-chart.json'],
+            ['href' => 'view_teacher_evaluations.php', 'icon' => 'bi-person-check', 'title' => 'Teacher Evaluations', 'desc' => 'View anonymous student feedback.', 'lottie' => 'assets/animations/reports.json'],
+            ['href' => 'student_growth_dashboard.php', 'icon' => 'bi-graph-up', 'title' => 'Student Growth', 'desc' => 'Visualize student progress and correlations.', 'lottie' => 'assets/animations/analytics-chart.json'],
+            ['href' => 'run_gamification_awards.php', 'icon' => 'bi-award-fill', 'title' => 'Run Gamification Awards', 'desc' => 'Manually run scripts to award points.', 'lottie' => 'assets/animations/announcement.json'],
             ['href' => 'view_all_notifications.php', 'icon' => 'bi-bell', 'title' => 'All Notifications', 'desc' => 'View all notifications sent to users.', 'lottie' => 'assets/animations/activity-log.json'],
+            ['href' => 'run_guardian_alerts.php', 'icon' => 'bi-exclamation-triangle-fill', 'title' => 'Run Guardian Alerts', 'desc' => 'Check for and send emergency alerts to guardians.', 'lottie' => 'assets/animations/announcement.json'],
             ['href' => 'send_notification.php', 'icon' => 'bi-send-fill', 'title' => 'Send Notification', 'desc' => 'Broadcast messages to users or groups.', 'lottie' => 'assets/animations/announcement.json'],
             ['href' => 'manage_discipline.php', 'icon' => 'bi-cone-striped', 'title' => 'Discipline Records', 'desc' => 'Manage student discipline incidents.', 'lottie' => 'assets/animations/reports.json'],
             ['href' => 'manage_assignments.php', 'icon' => 'bi-card-checklist', 'title' => 'Manage Assignments', 'desc' => 'Assign students, teachers, and subjects.', 'lottie' => 'assets/animations/assignments.json'],
@@ -35,6 +40,7 @@ switch ($role) {
             ['href' => 'manage_events.php', 'icon' => 'bi-calendar2-event-fill', 'title' => 'Manage Events', 'desc' => 'Create and manage school events.', 'lottie' => 'assets/animations/calendar.json'],
             ['href' => 'manage_leave_requests.php', 'icon' => 'bi-calendar-x', 'title' => 'Leave Requests', 'desc' => 'Approve or deny staff leave requests.', 'lottie' => 'assets/animations/leave-request.json'],
             ['href' => 'visitor_pass.php', 'icon' => 'bi-person-bounding-box', 'title' => 'Issue Visitor Pass', 'desc' => 'Generate temporary visitor passes.', 'lottie' => 'assets/animations/visitor-pass.json'],
+            ['href' => 'manage_absence_excuses.php', 'icon' => 'bi-card-list', 'title' => 'Absence Excuses', 'desc' => 'Review all student absence excuses.', 'lottie' => 'assets/animations/leave-request-history.json'],
             ['href' => 'print_classroom_ids.php', 'icon' => 'bi-printer-fill', 'title' => 'Print Class IDs', 'desc' => 'Batch print ID cards for a class.', 'lottie' => 'assets/animations/print.json'],
             ['href' => 'print_staff_ids.php', 'icon' => 'bi-printer', 'title' => 'Print Staff IDs', 'desc' => 'Batch print ID cards for staff.', 'lottie' => 'assets/animations/print.json'],
         ];
@@ -47,6 +53,7 @@ switch ($role) {
             ['href' => 'my_teacher_schedule.php', 'icon' => 'bi-table', 'title' => 'My Schedule', 'desc' => 'View your weekly teaching schedule.', 'lottie' => 'assets/animations/schedule.json'],
             ['href' => 'teacher_post_announcement.php', 'icon' => 'bi-megaphone-fill', 'title' => 'Post Announcements', 'desc' => 'Send messages to your students.', 'lottie' => 'assets/animations/announcement.json'],
             ['href' => 'request_leave.php', 'icon' => 'bi-calendar-x-fill', 'title' => 'Request Leave', 'desc' => 'Submit a leave of absence request.', 'lottie' => 'assets/animations/leave-request.json'],
+            ['href' => 'manage_absence_excuses.php', 'icon' => 'bi-card-list', 'title' => 'Absence Excuses', 'desc' => 'Review student absence excuses.', 'lottie' => 'assets/animations/leave-request-history.json'],
             ['href' => 'request_leave.php#leave-history', 'icon' => 'bi-card-list', 'title' => 'My Leave Requests', 'desc' => 'View the status of your leave requests.', 'lottie' => 'assets/animations/leave-request-history.json'],
             ['href' => 'view_calendar.php', 'icon' => 'bi-calendar-event', 'title' => 'Academic Calendar', 'desc' => 'View important school dates.', 'lottie' => 'assets/animations/calendar.json'],
             ['href' => 'all_news.php', 'icon' => 'bi-newspaper', 'title' => 'School News', 'desc' => 'Read the latest school news.', 'lottie' => 'assets/animations/news.json'],
@@ -55,12 +62,16 @@ switch ($role) {
     case 'student':
     case 'rep':
         $dashboard_items = [
+            ['href' => 'my_points.php', 'icon' => 'bi-star-fill', 'title' => 'My Points', 'desc' => 'View your points and badges.', 'lottie' => 'assets/animations/grades.json'],
+            ['href' => 'leaderboard.php', 'icon' => 'bi-trophy-fill', 'title' => 'Leaderboard', 'desc' => 'See the school-wide rankings.', 'lottie' => 'assets/animations/analytics-chart.json'],
             ['href' => 'view_my_grades.php', 'icon' => 'bi-file-earmark-text-fill', 'title' => 'View My Grades', 'desc' => 'Check your latest scores.', 'lottie' => 'assets/animations/grades.json'],
             ['href' => 'view_my_discipline.php', 'icon' => 'bi-cone-striped', 'title' => 'Discipline Record', 'desc' => 'View your discipline history.', 'lottie' => 'assets/animations/reports.json'],
             ['href' => 'view_my_attendance.php', 'icon' => 'bi-calendar-check-fill', 'title' => 'View My Attendance', 'desc' => 'Review your attendance record.', 'lottie' => 'assets/animations/attendance.json'],
             ['href' => 'view_my_schedule.php', 'icon' => 'bi-table', 'title' => 'View Class Schedule', 'desc' => 'See your weekly timetable.', 'lottie' => 'assets/animations/schedule.json'],
             ['href' => 'view_announcements.php', 'icon' => 'bi-megaphone', 'title' => 'View Announcements', 'desc' => 'See messages from your teachers.', 'lottie' => 'assets/animations/announcement.json'],
+            ['href' => 'career_guidance.php', 'icon' => 'bi-compass-fill', 'title' => 'Career Guidance', 'desc' => 'Get career recommendations based on your performance.', 'lottie' => 'assets/animations/analytics-chart.json'],
             ['href' => 'view_calendar.php', 'icon' => 'bi-calendar-event', 'title' => 'Academic Calendar', 'desc' => 'View important school dates.', 'lottie' => 'assets/animations/calendar.json'],
+            ['href' => 'submit_evaluation.php', 'icon' => 'bi-star-half', 'title' => 'Evaluate Teachers', 'desc' => 'Provide anonymous feedback on your classes.', 'lottie' => 'assets/animations/grades.json'],
             ['href' => 'all_news.php', 'icon' => 'bi-newspaper', 'title' => 'School News', 'desc' => 'Read the latest school news.', 'lottie' => 'assets/animations/news.json'],
         ];
         if ($role === 'rep') {
@@ -70,9 +81,13 @@ switch ($role) {
     case 'director':
          $dashboard_items = [
              ['href' => 'academic_overview.php', 'icon' => 'bi-bar-chart-line-fill', 'title' => 'Academic Overview', 'desc' => 'High-level school statistics.', 'lottie' => 'assets/animations/analytics-chart.json'],
+             ['href' => 'manage_predictions.php', 'icon' => 'bi-robot', 'title' => 'AI Predictions', 'desc' => 'Manage and view AI-based student predictions.', 'lottie' => 'assets/animations/analytics-chart.json'],
+             ['href' => 'view_teacher_evaluations.php', 'icon' => 'bi-person-check', 'title' => 'Teacher Evaluations', 'desc' => 'View anonymous student feedback.', 'lottie' => 'assets/animations/reports.json'],
+             ['href' => 'student_growth_dashboard.php', 'icon' => 'bi-graph-up', 'title' => 'Student Growth', 'desc' => 'Visualize student progress and correlations.', 'lottie' => 'assets/animations/analytics-chart.json'],
              ['href' => 'view_all_notifications.php', 'icon' => 'bi-bell', 'title' => 'All Notifications', 'desc' => 'View all notifications sent to users.', 'lottie' => 'assets/animations/activity-log.json'],
              ['href' => 'reports_hub.php', 'icon' => 'bi-file-pdf-fill', 'title' => 'Generate Reports', 'desc' => 'Create and export school reports.', 'lottie' => 'assets/animations/print.json'],
              ['href' => 'manage_discipline.php', 'icon' => 'bi-cone-striped', 'title' => 'Discipline Records', 'desc' => 'Manage student discipline incidents.', 'lottie' => 'assets/animations/reports.json'],
+             ['href' => 'manage_absence_excuses.php', 'icon' => 'bi-card-list', 'title' => 'Absence Excuses', 'desc' => 'Review all student absence excuses.', 'lottie' => 'assets/animations/leave-request-history.json'],
              ['href' => 'manage_leave_requests.php', 'icon' => 'bi-calendar-x-fill', 'title' => 'Manage Leave', 'desc' => 'Review staff leave requests.', 'lottie' => 'assets/animations/leave-request.json'],
              ['href' => 'manage_students.php', 'icon' => 'bi-people-fill', 'title' => 'Manage Students', 'desc' => 'View, edit, and manage all students.', 'lottie' => 'assets/animations/user-group.json'],
              ['href' => 'manage_teachers.php', 'icon' => 'bi-person-badge', 'title' => 'Manage Teachers', 'desc' => 'View, edit, and manage all teachers.', 'lottie' => 'assets/animations/user-group.json'],

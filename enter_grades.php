@@ -30,6 +30,7 @@ mysqli_stmt_close($stmt_teacher_id);
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['save_grades'])) {
     $subject_id = $_POST['subject_id'];
     $grades_data = $_POST['grades']; // Array of [student_id => [component => value]]
+    $subject_name_for_log = '';
 
     mysqli_begin_transaction($conn);
     try {
@@ -56,6 +57,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['save_grades'])) {
             mysqli_stmt_bind_param($stmt, "iidddddddds", $student_id, $subject_id, $teacher_id, $test, $assignment, $activity, $exercise, $midterm, $final, $total, $updated_by_username);
             if (!mysqli_stmt_execute($stmt)) {
                 throw new Exception("Failed to save grades for student ID $student_id: " . mysqli_stmt_error($stmt));
+            }
+
+            // --- Gamification: Award points for high scores ---
+            if ($total >= 90) {
+                if (empty($subject_name_for_log)) { // Fetch subject name only once
+                    $res = mysqli_query($conn, "SELECT name FROM subjects WHERE subject_id = $subject_id");
+                    $subject_name_for_log = mysqli_fetch_assoc($res)['name'] ?? 'a subject';
+                }
+                add_gamification_points($conn, $student_id, 25, 'high_score', "Scored {$total}% in " . htmlspecialchars($subject_name_for_log));
             }
         }
         
